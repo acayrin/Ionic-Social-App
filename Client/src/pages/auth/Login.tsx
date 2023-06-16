@@ -33,8 +33,8 @@ const Login: React.FC = () => {
 
 	const history = useHistory();
 
-	const [inUsername, setInUsername] = useState<string | null | undefined>();
-	const [inPassword, setInPassword] = useState<string | null | undefined>();
+	const [inUsername, setInUsername] = useState<string | null | undefined>("");
+	const [inPassword, setInPassword] = useState<string | null | undefined>("");
 	const [txtResponse, setTxtResponse] = useState<string>("");
 
 	// input change event handler

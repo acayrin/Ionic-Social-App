@@ -27,9 +27,9 @@ const toZZZZ = async (input: string) => {
 const Register: React.FC = () => {
 	document.title = "Auth | Register";
 
-	const [inUsername, setInUsername] = useState<string | null | undefined>();
-	const [inPassword, setInPassword] = useState<string | null | undefined>();
-	const [inPassConf, setInPassConf] = useState<string | null | undefined>();
+	const [inUsername, setInUsername] = useState<string | null | undefined>("");
+	const [inPassword, setInPassword] = useState<string | null | undefined>("");
+	const [inPassConf, setInPassConf] = useState<string | null | undefined>("");
 	const [txtResponse, setTxtResponse] = useState<string>("");
 
 	// input change event handler
@@ -39,7 +39,7 @@ const Register: React.FC = () => {
 
 	// button submit event handler
 	const evBtnClick = () => {
-		if (inUsername?.length === 0 || inPassword?.length === 0) {
+		if (inUsername?.length === 0 || inPassword?.length === 0 || inPassConf?.length === 0) {
 			return setTxtResponse("Invalid username or password");
 		}
 		if (inPassword !== inPassConf) {
