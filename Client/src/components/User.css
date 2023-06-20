@@ -1,0 +1,44 @@
+.profile-avatar-wrapper {
+	position: absolute;
+	height: 100px;
+	width: 100px;
+	top: -40px;
+	background: var(--ion-card-background);
+	border-radius: 100%;
+}
+.profile-avatar {
+	position: relative;
+	top: 0;
+	left: 0;
+	margin: 6px;
+	width: 88px;
+	height: 88px;
+	background-size: cover;
+	background-repeat: no-repeat;
+	border-radius: 100%;
+}
+.profile-banner-wrapper {
+	height: 100px;
+	width: 100%;
+	overflow: hidden;
+}
+.profile-banner {
+	height: 100%;
+	width: 100%;
+	background-repeat: no-repeat;
+	background-position: center;
+	background-size: cover;
+	margin: auto;
+}
+.profile-grid {
+	width: 100%;
+	padding: 0;
+	margin-top: -8px;
+}
+.profile-title {
+	margin-left: 108px;
+}
+
+b {
+	font-size: large;
+}
