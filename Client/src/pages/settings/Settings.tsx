@@ -14,7 +14,7 @@ const Page: React.FC = () => {
 	}, []);
 	const render = (page: "1" | "2" | "3" | "4") => {
 		setPageValue(page);
-		
+
 		if (page === "1") {
 			setPage(<CPNormal />);
 		} else if (page === "2") {

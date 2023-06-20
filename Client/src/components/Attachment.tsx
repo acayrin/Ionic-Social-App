@@ -6,7 +6,7 @@ const CAttachment: React.FC<{ attachment: Attachment; withThumbnail?: boolean; o
 	withThumbnail,
 	onlyThumbnail,
 }) => (
-	<div style={{width: "100%"}}>
+	<div style={{ width: "100%" }}>
 		{(withThumbnail || onlyThumbnail) &&
 			(attachment.filename.endsWith(".png") ||
 				attachment.filename.endsWith(".jpg") ||

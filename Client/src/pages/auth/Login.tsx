@@ -1,3 +1,4 @@
+import { Preferences } from "@capacitor/preferences";
 import {
 	InputChangeEventDetail,
 	IonButton,
@@ -10,36 +11,31 @@ import {
 	IonInput,
 	IonItem,
 	IonLabel,
-	IonNavLink,
-	IonRoute,
-	IonRouterLink,
 	IonSkeletonText,
+	NavContext,
 } from "@ionic/react";
-import { useState } from "react";
-import { Redirect, Route, useHistory } from "react-router";
+import { useContext, useState } from "react";
 import { Link } from "react-router-dom";
+import UIContext from "../../context/UIContext";
+import UserContext from "../../context/UserContext";
 import { WebSocketClient } from "../../websocket";
+import { sha256 } from "js-sha256";
 import "./Auth.css";
 
-const toZZZZ = async (input: string) => {
-	const z = new TextEncoder().encode(input);
-	const zz = await crypto.subtle.digest("SHA-256", z);
-	const zzz = Array.from(new Uint8Array(zz));
-
-	return zzz.map((z) => z.toString(16).padStart(2, "0")).join("");
-};
 const Login: React.FC = () => {
-	document.title = "Auth | Login";
+	const { setUser, setToken } = useContext(UserContext)!;
+	const { navigate } = useContext(NavContext);
+	const { setWindowTitle } = useContext(UIContext);
 
-	const history = useHistory();
+	setWindowTitle("Login");
 
-	const [inUsername, setInUsername] = useState<string | null | undefined>("");
-	const [inPassword, setInPassword] = useState<string | null | undefined>("");
+	const [inUsername, setInUsername] = useState<string>("");
+	const [inPassword, setInPassword] = useState<string>("");
 	const [txtResponse, setTxtResponse] = useState<string>("");
 
 	// input change event handler
-	const evUsername = ({ value }: InputChangeEventDetail) => setInUsername(value);
-	const evPassword = ({ value }: InputChangeEventDetail) => setInPassword(value);
+	const evUsername = ({ value }: InputChangeEventDetail) => setInUsername(value ?? "");
+	const evPassword = ({ value }: InputChangeEventDetail) => setInPassword(value ?? "");
 
 	// button submit event handler
 	const evBtnClick = () => {
@@ -47,18 +43,25 @@ const Login: React.FC = () => {
 			return setTxtResponse("Invalid username or password");
 		}
 
-		toZZZZ(inPassword!!).then((zzzz) => {
-			WebSocketClient.send("AUTH_LOGIN", {
+		WebSocketClient.sendAndListenPromise({
+			request: "AUTH_LOGIN",
+			data: {
 				username: inUsername,
-				password: zzzz,
-			});
-			WebSocketClient.listenOnce("AUTH_LOGIN", (d) => {
-				if (d.status === "not ok") {
-					setTxtResponse(d.error!!);
-				} else {
-					history.push("/home");
-				}
-			});
+				password: sha256(inPassword),
+			},
+		}).then((d) => {
+			if (d.status === "not ok") {
+				setTxtResponse(d.error!!);
+			} else {
+				Preferences.set({
+					key: "whoami",
+					value: d.token,
+				}).then(() => {
+					setToken(d.token);
+					setUser(d.userId);
+					navigate("/");
+				});
+			}
 		});
 	};
 
@@ -80,21 +83,23 @@ const Login: React.FC = () => {
 					</IonCardSubtitle>
 				</IonCardHeader>
 				<IonCardContent className="ion-text-center">
-					<IonItem>
-						<IonLabel position="floating">Username</IonLabel>
-						<IonInput
-							onIonChange={({ detail }) => evUsername(detail)}
-							placeholder="Your username"
-						/>
-					</IonItem>
-					<IonItem>
-						<IonLabel position="floating">Password</IonLabel>
-						<IonInput
-							type="password"
-							onIonChange={({ detail }) => evPassword(detail)}
-							placeholder="Your password"
-						/>
-					</IonItem>
+					<div className="card-input-container">
+						<IonItem>
+							<IonLabel position="floating">Username</IonLabel>
+							<IonInput
+								onIonInput={({ detail }) => evUsername(detail)}
+								placeholder="Your username"
+							/>
+						</IonItem>
+						<IonItem>
+							<IonLabel position="floating">Password</IonLabel>
+							<IonInput
+								type="password"
+								onIonInput={({ detail }) => evPassword(detail)}
+								placeholder="Your password"
+							/>
+						</IonItem>
+					</div>
 					<IonButton
 						onClick={evBtnClick}
 						expand="block">
@@ -109,4 +114,4 @@ const Login: React.FC = () => {
 	);
 };
 
-export { Login as AuthLogin };
+export { Login as PageAuthLogin };

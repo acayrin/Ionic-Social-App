@@ -1,14 +1,20 @@
-import { RequestData, RequestSubData, REQUEST_TYPE } from "./types";
+import AppConfig from "../../shared/config";
+import { RequestData, RequestSubData, REQUEST_TYPE } from "../../shared/types";
 
 export class WebSocketClient {
+	static #isReady = false;
 	static #ws?: WebSocket;
 
-	static get = () => {
+	static get = async () => {
 		if (this.#ws) {
+			while (!this.#isReady) {
+				console.info(`Waiting 500ms for connection to be ready`);
+				await new Promise((res) => setTimeout(res, 500));
+			}
 			return this.#ws;
 		}
 
-		this.#ws = new WebSocket("ws://127.0.0.1:3000");
+		this.#ws = new WebSocket("wss://ionic-server-production.up.railway.app");
 
 		this.#ws.onerror = (err) => {
 			console.error(err);
@@ -29,21 +35,36 @@ export class WebSocketClient {
 		};
 
 		this.#ws.onopen = () => {
+			this.#isReady = true;
+
 			console.info(`[ws] Connected to ${this.#ws!!.url}`);
 
 			this.#ws!!.onmessage = ({ data }) => {
-				const z = JSON.parse(data) as RequestData;
-				const res = new RequestData(z.r, z.d);
+				const z = AppConfig._deserialize(data) as RequestData;
+				const res = new RequestData(z.r, z.d, 0);
 
-				console.info("[ws]", res.d.error);
+				console.info("[ws]", res.d.error ?? res.d.status);
 			};
 		};
 
 		return this.#ws;
 	};
 
-	static send = (reqType: keyof typeof REQUEST_TYPE, data: { [key: string]: unknown }) => {
-		this.get().send(new RequestData(REQUEST_TYPE[reqType], data).toString());
+	/**
+	 * Send data with given request type
+	 *
+	 * @name send
+	 * @static
+	 * @returns {void}
+	 */
+	static send = (o: {
+		request: keyof typeof REQUEST_TYPE;
+		data: { [key: string]: unknown };
+		user?: string;
+	}): void => {
+		const { request, data, user } = o;
+
+		this.get().then((ws) => ws.send(new RequestData(REQUEST_TYPE[request], data, 0, user).toString()));
 	};
 
 	/**
@@ -51,20 +72,23 @@ export class WebSocketClient {
 	 *
 	 * @name listen
 	 * @static
-	 * @param {keyof typeof REQUEST_TYPE} reqType
-	 * @param {(d: RequestSubData) => unknown} cb
 	 * @returns {void}
 	 */
-	static listen = <T = RequestSubData>(reqType: keyof typeof REQUEST_TYPE, cb: (d: T) => unknown): void => {
-		const listener = ({ data }: MessageEvent): void => {
-			const { d, r } = JSON.parse(data) as RequestData;
+	static listen = <T = RequestSubData>(o: {
+		request: keyof typeof REQUEST_TYPE;
+		callback: (d: T) => unknown;
+	}): void => {
+		const { request, callback } = o;
 
-			if (r === REQUEST_TYPE[reqType]) {
-				cb(d as T);
+		const listener = ({ data }: MessageEvent): void => {
+			const { d, r } = AppConfig._deserialize(data) as RequestData;
+
+			if (r === REQUEST_TYPE[request]) {
+				callback(d as T);
 			}
 		};
 
-		this.get().addEventListener("message", listener);
+		this.get().then((ws) => ws.addEventListener("message", listener));
 	};
 
 	/**
@@ -72,28 +96,68 @@ export class WebSocketClient {
 	 *
 	 * @name listenOnce
 	 * @static
-	 * @param {keyof typeof REQUEST_TYPE} reqType
-	 * @param {(d: RequestSubData) => unknown} cb
-	 * @param {number} timeout?
 	 * @returns {void}
 	 */
-	static listenOnce = <T = RequestSubData>(
-		reqType: keyof typeof REQUEST_TYPE,
-		cb: (d: T) => unknown,
-		timeout: number = 60
-	): void => {
+	static listenOnce = <T = RequestSubData>(o: {
+		request: keyof typeof REQUEST_TYPE;
+		callback: (d: T) => unknown;
+		identifier: number;
+		timeout?: number;
+	}): void => {
+		const { request, callback, timeout, identifier } = o;
+
 		const listener = ({ data }: MessageEvent): void => {
-			const { d, r } = JSON.parse(data) as RequestData;
+			const { d, r, i } = AppConfig._deserialize(data) as RequestData;
 
-			if (r === REQUEST_TYPE[reqType]) {
-				cb(d as T);
-
-				return this.get().removeEventListener("message", listener);
+			if (!(r === REQUEST_TYPE[request] && identifier === i)) {
+				return;
 			}
 
-			setTimeout(() => this.get().removeEventListener("message", listener), timeout);
+			callback(d as T);
+
+			this.get().then((ws) => ws.removeEventListener("message", listener));
 		};
 
-		this.get().addEventListener("message", listener);
+		setTimeout(() => this.get().then((ws) => ws.removeEventListener("message", listener)), timeout ?? 60e3);
+
+		this.get().then((ws) => ws.addEventListener("message", listener));
 	};
+
+	/**
+	 * Send data and listen for response of given request type once as a promise
+	 *
+	 * @name sendAndListenPromise
+	 * @static
+	 */
+	static sendAndListenPromise = <T = RequestSubData, Y = { [key: string]: unknown }>(o: {
+		request: keyof typeof REQUEST_TYPE;
+		data: Y;
+		token?: string;
+		timeout?: number;
+	}): Promise<T> =>
+		new Promise((resolve, reject) => {
+			const { data, token, request, timeout } = o;
+			const identifier = Math.random() * Date.now();
+
+			const listener = ({ data }: MessageEvent): void => {
+				const { d, r, i } = AppConfig._deserialize(data) as RequestData;
+
+				if (r === REQUEST_TYPE[request] && i === identifier) {
+					this.get().then((ws) => ws.removeEventListener("message", listener));
+
+					return resolve(d as T);
+				}
+			};
+
+			setTimeout(() => {
+				this.get().then((ws) => ws.removeEventListener("message", listener));
+
+				reject("Timedout");
+			}, timeout ?? 60e3);
+
+			this.get().then((ws) => {
+				ws.addEventListener("message", listener);
+				ws.send(new RequestData(REQUEST_TYPE[request], data, identifier, token).toString());
+			});
+		});
 }
